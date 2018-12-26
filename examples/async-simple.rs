@@ -17,7 +17,7 @@ fn subscriber(rx: async::Subscriber<i32>) -> impl Future<Item = (), Error = ()> 
 
 fn main() {
     let mut rt = Runtime::new().unwrap();
-    let (tx, rx): (async::Publisher<i32>, async::Subscriber<i32>) = async::channel(10);
+    let (tx, rx): (async::Publisher<i32>, async::Subscriber<i32>) = async::channel(5);
 
     let publisher = stream::iter_ok(vec![1, 2, 3, 4, 5])
         .forward(tx)

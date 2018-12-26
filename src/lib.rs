@@ -139,7 +139,7 @@ pub struct BarePublisher<T: Send> {
 pub struct BareSubscriber<T: Send> {
     buffer: Arc<Vec<ArcSwapOption<T>>>,
     wi: Arc<AtomicUsize>,
-    ri: AtomicUsize,
+    ri: usize,
     size: usize,
     sub_cnt: Arc<AtomicUsize>,
     pub_available: Arc<AtomicBool>,
@@ -194,20 +194,13 @@ impl<T: Send> Drop for BarePublisher<T> {
 }
 
 impl<T: Send> BareSubscriber<T> {
-    /// Receives some atomic reference to an object if queue is not empty, or None if it is. Never
-    /// Blocks
-    #[inline(always)]
-    fn ri(&self) -> usize {
-        self.ri.load(Ordering::Relaxed)
-    }
-
     #[inline(always)]
     fn wi(&self) -> usize {
         self.wi.load(Ordering::Acquire)
     }
 
-    pub fn try_recv(&self) -> Result<Arc<T>, TryRecvError> {
-        if self.ri() == self.wi() {
+    pub fn try_recv(&mut self) -> Result<Arc<T>, TryRecvError> {
+        if self.ri == self.wi() {
             if self.pub_available.load(Ordering::Relaxed) {
                 return Err(TryRecvError::Empty);
             } else {
@@ -216,12 +209,12 @@ impl<T: Send> BareSubscriber<T> {
         }
 
         loop {
-            let val = self.buffer[self.ri() % self.size].load().unwrap();
+            let val = self.buffer[self.ri % self.size].load().unwrap();
 
-            if self.wi() >= self.ri() + self.size {
-                self.ri.store(self.wi() - self.size + 1, Ordering::Relaxed);
+            if self.wi() >= self.ri + self.size {
+                self.ri = self.wi() - self.size + 1;
             } else {
-                self.ri.fetch_add(1, Ordering::Relaxed);
+                self.ri += 1;
                 return Ok(val);
             }
         }
@@ -236,7 +229,7 @@ impl<T: Send> Clone for BareSubscriber<T> {
         Self {
             buffer: self.buffer.clone(),
             wi: self.wi.clone(),
-            ri: AtomicUsize::new(self.ri.load(Ordering::Relaxed)),
+            ri: self.ri.clone(),
             size: self.size,
             sub_cnt: self.sub_cnt.clone(),
             pub_available: self.pub_available.clone(),

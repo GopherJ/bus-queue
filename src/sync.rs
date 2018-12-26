@@ -60,10 +60,10 @@ impl<T: Send> Drop for Publisher<T> {
 }
 
 impl<T: Send> Subscriber<T> {
-    pub fn try_recv(&self) -> Result<Arc<T>, TryRecvError> {
+    pub fn try_recv(&mut self) -> Result<Arc<T>, TryRecvError> {
         self.bare_subscriber.try_recv()
     }
-    pub fn recv(&self) -> Result<Arc<T>, RecvError> {
+    pub fn recv(&mut self) -> Result<Arc<T>, RecvError> {
         loop {
             let result = self.bare_subscriber.try_recv();
             if let Ok(object) = result {
@@ -78,7 +78,7 @@ impl<T: Send> Subscriber<T> {
             thread::park();
         }
     }
-    pub fn recv_timeout(&self, timeout: Duration) -> Result<Arc<T>, RecvTimeoutError> {
+    pub fn recv_timeout(&mut self, timeout: Duration) -> Result<Arc<T>, RecvTimeoutError> {
         loop {
             let result = self.bare_subscriber.try_recv();
             if let Ok(object) = result {
@@ -114,16 +114,6 @@ impl<T: Send> Clone for Subscriber<T> {
     }
 }
 
-impl<'a, T: Send> Iterator for &'a Subscriber<T> {
-    type Item = Arc<T>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.recv() {
-            Ok(item) => Some(item),
-            Err(_) => None,
-        }
-    }
-}
 impl<T: Send> Iterator for Subscriber<T> {
     type Item = Arc<T>;
     fn next(&mut self) -> Option<Self::Item> {
